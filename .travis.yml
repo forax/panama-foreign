@@ -1,0 +1,9 @@
+language: java
+jdk: openjdk11
+
+install:
+  - java pro_wrapper.java version
+
+script:
+  - ./pro/bin/pro
+  
