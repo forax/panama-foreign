@@ -51,8 +51,8 @@ public class ReadMemoryBenchMark {
     }
   }
 
-  //private static final VarHandle INT_HANDLE = ofValueBits(4, nativeOrder()).varHandle(int.class);
-  //private static final VarHandle INT_ARRAY_HANDLE = ofSequence(ofValueBits(4, nativeOrder())).varHandle(int.class, sequenceElement());
+  //private static final VarHandle INT_HANDLE = ofValueBits(32, nativeOrder()).varHandle(int.class);
+  //private static final VarHandle INT_ARRAY_HANDLE = ofSequence(ofValueBits(32, nativeOrder())).varHandle(int.class, sequenceElement());
 
   private static final VarHandle INT_HANDLE = varHandle(int.class, nativeOrder());
   private static final VarHandle INT_ARRAY_HANDLE = withStride(varHandle(int.class, nativeOrder()), 4);
