@@ -19,7 +19,7 @@ resolver.
 
 compiler.
     sourceRelease(15).
-    enablePreview(true).
+    //enablePreview(true).
     processorModuleTestPath(path("deps")) // enable JMH annotation processor
       
 packager.
@@ -27,9 +27,9 @@ packager.
         "fr.umlv.foreign@1.0/fr.umlv.foreign.Main"
     )   
    
-runner.
-    enablePreview(true)
+//runner.
+//    enablePreview(true)
     
-run(resolver, modulefixer, compiler, tester, packager, runner /*, perfer */)
+run(resolver, modulefixer, compiler, /*tester,*/ packager, runner /*, perfer */)
 
 /exit errorCode()

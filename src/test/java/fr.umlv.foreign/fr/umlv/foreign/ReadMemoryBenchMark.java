@@ -21,6 +21,7 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 
@@ -30,7 +31,7 @@ import jdk.incubator.foreign.MemoryHandles;
 import jdk.incubator.foreign.MemorySegment;
 import sun.misc.Unsafe;
 
-// /path/to/jdk-15-foreign/bin/java --module-path target/test/artifact:deps -m fr.umlv.foreign/fr.umlv.foreign.WriteMemoryBenchMark
+// /path/to/jdk-15-foreign/bin/java --module-path target/test/artifact:deps -m fr.umlv.foreign/fr.umlv.foreign.ReadMemoryBenchMark
 @SuppressWarnings("static-method")
 @Warmup(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
@@ -38,7 +39,7 @@ import sun.misc.Unsafe;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-public class WriteMemoryBenchMark {
+public class ReadMemoryBenchMark {
   private static final Unsafe UNSAFE;
   static {
     try {
@@ -57,65 +58,75 @@ public class WriteMemoryBenchMark {
   private static final VarHandle INT_ARRAY_HANDLE = withStride(varHandle(int.class, nativeOrder()), 4);
   
   @Benchmark
-  public void bytebuffer_write() {
+  public void bytebuffer_read(Blackhole blackhole) {
     var byteBuffer = ByteBuffer.allocateDirect(8192).order(nativeOrder());
     try {
+      var sum = 0;
       for (int i = 0; i < 1024; i++) {
-        byteBuffer.putInt(i * 4 , 42);
+        sum += byteBuffer.getInt(i * 4);
       }
+      blackhole.consume(sum);
     } finally {
       UNSAFE.invokeCleaner(byteBuffer);
     }
   }
 
   @Benchmark
-  public void unsafe_noclean_write() {
+  public void unsafe_noclean_read(Blackhole blackhole) {
     var address = UNSAFE.allocateMemory(8192);
     try {
+      var sum = 0;
       for (var i = 0; i < 1024; i++) {
-        UNSAFE.putInt(address + (i * 4) , 42);
+        sum += UNSAFE.getInt(address + (i * 4));
       }
+      blackhole.consume(sum);
     } finally {
       UNSAFE.freeMemory(address);
     }
   }
   
   @Benchmark
-  public void unsafe_clean_write() {
+  public void unsafe_clean_read(Blackhole blackhole) {
     var address = UNSAFE.allocateMemory(8192);
     UNSAFE.setMemory(address, 8192, (byte)0);
     try {
+      var sum = 0;
       for (var i = 0; i < 1024; i++) {
-        UNSAFE.putInt(address + (i * 4) , 42);
+        sum += UNSAFE.getInt(address + (i * 4));
       }
+      blackhole.consume(sum);
     } finally {
       UNSAFE.freeMemory(address);
     }
   }
 
   @Benchmark
-  public void segment_intArrayHandle_write() {
+  public void segment_intArrayHandle_read(Blackhole blackhole) {
     try(var segment = MemorySegment.allocateNative(8192)) {
       var base = segment.baseAddress();
+      var sum = 0;
       for (var i = 0; i < 1024; i++) {
-        INT_ARRAY_HANDLE.set(base, (long) i, 42);
+        sum += (int)INT_ARRAY_HANDLE.get(base, (long) i);
       }
+      blackhole.consume(sum);
     }
   }
 
   @Benchmark
-  public void segment_intHandle_write() {
+  public void segment_intHandle_read(Blackhole blackhole) {
     try(var segment = MemorySegment.allocateNative(8192)) {
       var base = segment.baseAddress();
+      var sum = 0;
       for (var i = 0; i < 1024; i++) {
-        INT_HANDLE.set(base.addOffset(i * 4), 42);
+        sum += (int)INT_HANDLE.get(base.addOffset(i * 4));
       }
+      blackhole.consume(sum);
     }
   }
 
   public static void main(String[] args) throws RunnerException {
     var opt = new OptionsBuilder()
-        .include(WriteMemoryBenchMark.class.getName())
+        .include(ReadMemoryBenchMark.class.getName())
         .build();
     new Runner(opt).run();
   }

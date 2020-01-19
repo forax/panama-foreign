@@ -21,16 +21,18 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
+import jdk.incubator.foreign.MemoryAddress;
 import jdk.incubator.foreign.MemoryHandles;
 import jdk.incubator.foreign.MemorySegment;
 import sun.misc.Unsafe;
 
-// /path/to/jdk-15-foreign/bin/java --module-path target/test/artifact:deps -m fr.umlv.foreign/fr.umlv.foreign.WriteMemoryBenchMark
+// /path/to/jdk-15-foreign/bin/java --module-path target/test/artifact:deps -m fr.umlv.foreign/fr.umlv.foreign.WriteGlobalMemoryBenchMark
 @SuppressWarnings("static-method")
 @Warmup(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
@@ -38,7 +40,7 @@ import sun.misc.Unsafe;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-public class WriteMemoryBenchMark {
+public class ReadGlobalMemoryBenchMark {
   private static final Unsafe UNSAFE;
   static {
     try {
@@ -50,73 +52,61 @@ public class WriteMemoryBenchMark {
     }
   }
 
-  //private static final VarHandle INT_HANDLE = ofValueBits(4, nativeOrder()).varHandle(int.class);
-  //private static final VarHandle INT_ARRAY_HANDLE = ofSequence(ofValueBits(4, nativeOrder())).varHandle(int.class, sequenceElement());
+  // private static final VarHandle INT_HANDLE = ofValueBits(4,
+  // nativeOrder()).varHandle(int.class);
+  // private static final VarHandle INT_ARRAY_HANDLE = ofSequence(ofValueBits(4,
+  // nativeOrder())).varHandle(int.class, sequenceElement());
 
   private static final VarHandle INT_HANDLE = varHandle(int.class, nativeOrder());
   private static final VarHandle INT_ARRAY_HANDLE = withStride(varHandle(int.class, nativeOrder()), 4);
+
+  private static final ByteBuffer BYTE_BUFFER;
+  private static final long ADDRESS;
+  private static final MemoryAddress BASE;
+  static {
+    BYTE_BUFFER = ByteBuffer.allocateDirect(8192).order(nativeOrder());
+    ADDRESS = UNSAFE.allocateMemory(8192);
+    BASE = MemorySegment.allocateNative(8192).baseAddress();
+  }
+
+  @Benchmark
+  public void bytebuffer_read(Blackhole blackhole) {
+    var sum = 0;
+    for (int i = 0; i < 1024; i++) {
+      sum += BYTE_BUFFER.getInt(i * 4);
+    }
+    blackhole.consume(sum);
+  }
+
+  @Benchmark
+  public void unsafe_read(Blackhole blackhole) {
+    var sum = 0;
+    for (var i = 0; i < 1024; i++) {
+      sum += UNSAFE.getInt(ADDRESS + (i * 4));
+    }
+    blackhole.consume(sum);
+  }
+
+  @Benchmark
+  public void segment_intArrayHandle_read(Blackhole blackhole) {
+    var sum = 0;
+    for (var i = 0; i < 1024; i++) {
+      sum += (int)INT_ARRAY_HANDLE.get(BASE, (long) i);
+    }
+    blackhole.consume(sum);
+  }
+
+  @Benchmark
+  public void segment_intHandle_read(Blackhole blackhole) {
+    var sum = 0;
+    for (var i = 0; i < 1024; i++) {
+      sum += (int)INT_HANDLE.get(BASE.addOffset(i * 4));
+    }
+    blackhole.consume(sum);
+  }
   
-  @Benchmark
-  public void bytebuffer_write() {
-    var byteBuffer = ByteBuffer.allocateDirect(8192).order(nativeOrder());
-    try {
-      for (int i = 0; i < 1024; i++) {
-        byteBuffer.putInt(i * 4 , 42);
-      }
-    } finally {
-      UNSAFE.invokeCleaner(byteBuffer);
-    }
-  }
-
-  @Benchmark
-  public void unsafe_noclean_write() {
-    var address = UNSAFE.allocateMemory(8192);
-    try {
-      for (var i = 0; i < 1024; i++) {
-        UNSAFE.putInt(address + (i * 4) , 42);
-      }
-    } finally {
-      UNSAFE.freeMemory(address);
-    }
-  }
-  
-  @Benchmark
-  public void unsafe_clean_write() {
-    var address = UNSAFE.allocateMemory(8192);
-    UNSAFE.setMemory(address, 8192, (byte)0);
-    try {
-      for (var i = 0; i < 1024; i++) {
-        UNSAFE.putInt(address + (i * 4) , 42);
-      }
-    } finally {
-      UNSAFE.freeMemory(address);
-    }
-  }
-
-  @Benchmark
-  public void segment_intArrayHandle_write() {
-    try(var segment = MemorySegment.allocateNative(8192)) {
-      var base = segment.baseAddress();
-      for (var i = 0; i < 1024; i++) {
-        INT_ARRAY_HANDLE.set(base, (long) i, 42);
-      }
-    }
-  }
-
-  @Benchmark
-  public void segment_intHandle_write() {
-    try(var segment = MemorySegment.allocateNative(8192)) {
-      var base = segment.baseAddress();
-      for (var i = 0; i < 1024; i++) {
-        INT_HANDLE.set(base.addOffset(i * 4), 42);
-      }
-    }
-  }
-
   public static void main(String[] args) throws RunnerException {
-    var opt = new OptionsBuilder()
-        .include(WriteMemoryBenchMark.class.getName())
-        .build();
+    var opt = new OptionsBuilder().include(ReadGlobalMemoryBenchMark.class.getName()).build();
     new Runner(opt).run();
   }
 }
