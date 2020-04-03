@@ -1,1 +1,1 @@
-PRO_SPECIAL_BUILD=early-access-foreign
+PRO_SPECIAL_BUILD=early-access
